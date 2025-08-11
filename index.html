@@ -14,7 +14,7 @@
       z-index:1000
     }
     .search{
-      width:720px;
+      width: 576px;
       background:rgba(20,24,33,.85);
       backdrop-filter:blur(8px);
       border:1px solid rgba(255,255,255,.12);
@@ -31,16 +31,16 @@
     .status{font-size:15px;color:#9fb0c7;margin-top:8px;text-align:center}
     .list{
       position:absolute;
-      top:calc(75% + 60px);
+      top: calc(75% + 40px); /* closer to search bar */
       left:50%;
       transform:translateX(-50%);
-      width:720px;max-height:300px;overflow:auto;
+      width:576px;max-height:300px;overflow:auto;
       background:rgba(20,24,33,.96);border:1px solid rgba(255,255,255,.12);
       border-radius:16px;padding:8px;display:none
     }
-    .item{padding:14px;border-radius:10px;color:#e8eef8;font-size:20px;cursor:pointer}
+    .item{padding:10px;border-radius:10px;color:#e8eef8;font-size:16px;cursor:pointer}
     .item:hover,.item.active{background:#1f2a3a}
-    .pill{font-size:14px;color:#9fb0c7}
+    .pill{font-size:12px;color:#9fb0c7}
     .pin{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.45);position:absolute;transform:translate(-50%,-50%)}
     .pulse{position:absolute;width:14px;height:14px;border:2px solid rgba(255,255,255,.65);border-radius:50%;transform:translate(-50%,-50%);animation:pulse 1s ease-out 3}
     @keyframes pulse{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.2)}}
@@ -74,7 +74,7 @@
   L.tileLayer(SUPABASE_TILE_URL,{
     minZoom:10,maxZoom:16,minNativeZoom:10,maxNativeZoom:16,tileSize:256,tms:false
   }).addTo(map);
-  map.setView([38.75,-78.0],12);
+  map.setView([38.65694, -78.22611], 14);
 
   L.DomEvent.disableClickPropagation(document.querySelector('.search-wrap'));
 
