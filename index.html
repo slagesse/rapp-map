@@ -96,20 +96,38 @@
     })
     .catch(e=>{statusEl.textContent='Failed to load rapp.csv';console.error(e)});
 
-  function render(items){
-    list.innerHTML='';
-    if(!items.length){list.style.display='none';return}
-    items.slice(0,5).forEach((it,i)=>{
-      const div=document.createElement('div');
-      div.className='item'+(i===0?' active':'');
-      if(i===0)active=0;
-      const t=document.createElement('div');t.textContent=it.a;div.appendChild(t);
-      const p=document.createElement('div');p.className='pill';p.textContent=`${it.lat.toFixed(5)}, ${it.lon.toFixed(5)}`;div.appendChild(p);
-      div.onclick=()=>select(it);
-      list.appendChild(div);
-    });
-    list.style.display='block';
-  }
+    function render(items){
+  list.innerHTML = '';
+  if(!items.length){ list.style.display = 'none'; return; }
+  items.slice(0,5).forEach((it,i)=>{
+    const div = document.createElement('div');
+    div.className = 'item' + (i===0 ? ' active' : '');
+    if(i===0) active = 0;
+
+    // Put address and coords inline
+    const t = document.createElement('div');
+    t.style.display = 'flex';
+    t.style.justifyContent = 'space-between';
+    t.style.alignItems = 'center';
+    
+    const addrSpan = document.createElement('span');
+    addrSpan.textContent = it.a;
+
+    const coordSpan = document.createElement('span');
+    coordSpan.className = 'pill';
+    coordSpan.textContent = `${it.lat.toFixed(5)}, ${it.lon.toFixed(5)}`;
+    coordSpan.style.marginLeft = '12px';
+    
+    t.appendChild(addrSpan);
+    t.appendChild(coordSpan);
+    div.appendChild(t);
+
+    div.onclick = () => select(it);
+    list.appendChild(div);
+  });
+  list.style.display = 'block';
+}
+
 
   function search(s){
     const qn=norm(s);
