@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <head>
   <meta charset="utf-8" />
   <title>Rapp Map + Search</title>
@@ -24,9 +25,20 @@
       gap:12px;
       align-items:center
     }
-    .search input{
-      flex:1;background:transparent;border:0;outline:none;color:#e8eef8;font-size:26px
-    }
+    .search input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #e8eef8;
+  font-size: 26px; /* Desktop default */
+}
+
+@media (max-width: 768px) {
+  .search input {
+    font-size: 16px; /* Mobile-safe minimum to avoid zoom */
+  }
+}
     .search input::placeholder{color:#9fb0c7}
     .status{font-size:15px;color:#9fb0c7;margin-top:8px;text-align:center}
     .list{
