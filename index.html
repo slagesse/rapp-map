@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Rapp Map + Search</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html,body,#map{height:100%;margin:0}
+    .search-wrap{
+      position:absolute;
+      top:75%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      z-index:1000
+    }
+    .search{
+      width:720px;
+      background:rgba(20,24,33,.85);
+      backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:20px;
+      padding:18px 20px;
+      display:flex;
+      gap:12px;
+      align-items:center
+    }
+    .search input{
+      flex:1;background:transparent;border:0;outline:none;color:#e8eef8;font-size:26px
+    }
+    .search input::placeholder{color:#9fb0c7}
+    .status{font-size:15px;color:#9fb0c7;margin-top:8px;text-align:center}
+    .list{
+      position:absolute;
+      top:calc(75% + 60px);
+      left:50%;
+      transform:translateX(-50%);
+      width:720px;max-height:300px;overflow:auto;
+      background:rgba(20,24,33,.96);border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;padding:8px;display:none
+    }
+    .item{padding:14px;border-radius:10px;color:#e8eef8;font-size:20px;cursor:pointer}
+    .item:hover,.item.active{background:#1f2a3a}
+    .pill{font-size:14px;color:#9fb0c7}
+    .pin{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.45);position:absolute;transform:translate(-50%,-50%)}
+    .pulse{position:absolute;width:14px;height:14px;border:2px solid rgba(255,255,255,.65);border-radius:50%;transform:translate(-50%,-50%);animation:pulse 1s ease-out 3}
+    @keyframes pulse{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.2)}}
+    .leaflet-control-zoom{
+      transform:scale(2);
+      transform-origin:top left;
+      margin-top:10px;
+      margin-left:10px;
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="search-wrap">
+  <div class="search">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="m21 21-4.2-4.2M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#9fb0c7" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="q" placeholder="Search address in Rappahannock County…" autocomplete="off" />
+  </div>
+  <div class="status" id="status">Loading addresses…</div>
+  <div id="list" class="list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+  const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+
+  const map=L.map('map',{minZoom:10,maxZoom:16});
+  const SUPABASE_TILE_URL='https://lyunjcjfdjxxhtindvgy.supabase.co/storage/v1/object/public/rapp-photos/tiles-9/{z}/{x}/{y}.png';
+  L.tileLayer(SUPABASE_TILE_URL,{
+    minZoom:10,maxZoom:16,minNativeZoom:10,maxNativeZoom:16,tileSize:256,tms:false
+  }).addTo(map);
+  map.setView([38.75,-78.0],12);
+
+  L.DomEvent.disableClickPropagation(document.querySelector('.search-wrap'));
+
+  const q=document.getElementById('q'),list=document.getElementById('list'),statusEl=document.getElementById('status');
+  let data=[],lastResults=[],active=-1,marker=null,pulse=null,debounceT=null;
+
+  fetch('./rapp.csv')
+    .then(r=>{if(!r.ok)throw new Error('csv not found');return r.text()})
+    .then(txt=>{
+      const r=Papa.parse(txt,{header:true,skipEmptyLines:true});
+      const rows=r.data.filter(o=>o&&Object.keys(o).length);
+      const headers=(r.meta.fields||Object.keys(rows[0]||{})).map(h=>String(h));
+      const find=(alts)=>{const L=headers.map(h=>h.toLowerCase().trim());for(const a of alts){const i=L.indexOf(a);if(i!==-1)return headers[i]}return null};
+      const addrKey=find(['fulladdr','fulladdress','address','site_address','street_address','location','addr','address1'])||'FULLADDR';
+      const latKey=find(['lat','latitude','y','ycoord','point_y','geom_y'])||'LAT';
+      const lonKey=find(['lon','long','longitude','x','xcoord','point_x','geom_x'])||'LONG';
+      data=rows.map(o=>{const a=String(o[addrKey]??'').trim();const lat=parseFloat(o[latKey]);const lon=parseFloat(o[lonKey]);return {a,an:norm(a),lat,lon}}).filter(d=>d.an&&Number.isFinite(d.lat)&&Number.isFinite(d.lon));
+      statusEl.textContent=``;
+    })
+    .catch(e=>{statusEl.textContent='Failed to load rapp.csv';console.error(e)});
+
+  function render(items){
+    list.innerHTML='';
+    if(!items.length){list.style.display='none';return}
+    items.slice(0,5).forEach((it,i)=>{
+      const div=document.createElement('div');
+      div.className='item'+(i===0?' active':'');
+      if(i===0)active=0;
+      const t=document.createElement('div');t.textContent=it.a;div.appendChild(t);
+      const p=document.createElement('div');p.className='pill';p.textContent=`${it.lat.toFixed(5)}, ${it.lon.toFixed(5)}`;div.appendChild(p);
+      div.onclick=()=>select(it);
+      list.appendChild(div);
+    });
+    list.style.display='block';
+  }
+
+  function search(s){
+    const qn=norm(s);
+    if(!qn||qn.length<2){lastResults=[];list.style.display='none';return}
+    lastResults=data.filter(d=>d.an.includes(qn));
+    render(lastResults);
+  }
+
+  function select(it){
+    list.style.display='none';
+    q.value=it.a;
+    map.flyTo([it.lat,it.lon],16,{duration:.8});
+    map.once('moveend',()=>{
+      if(marker)map.removeLayer(marker);
+      marker=L.marker([it.lat,it.lon],{interactive:false}).addTo(map);
+      const pt=map.latLngToLayerPoint([it.lat,it.lon]);
+      if(pulse)pulse.remove();
+      const pane=map.getPanes().overlayPane;
+      pulse=document.createElement('div');pulse.className='pulse';
+      const pin=document.createElement('div');pin.className='pin';
+      pulse.style.left=pin.style.left=pt.x+'px';
+      pulse.style.top=pin.style.top=pt.y+'px';
+      pane.appendChild(pulse);pane.appendChild(pin);
+      setTimeout(()=>{pulse.remove();pin.remove()},1200);
+    });
+  }
+
+  q.addEventListener('input',e=>{
+    active=-1;
+    clearTimeout(debounceT);
+    const val=e.target.value;
+    debounceT=setTimeout(()=>search(val),120);
+  });
+
+  q.addEventListener('keydown',e=>{
+    const items=[...list.querySelectorAll('.item')];
+    if(e.key==='ArrowDown'){e.preventDefault();if(!items.length)return;active=(active+1)%items.length;items.forEach(x=>x.classList.remove('active'));items[active].classList.add('active')}
+    if(e.key==='ArrowUp'){e.preventDefault();if(!items.length)return;active=(active-1+items.length)%items.length;items.forEach(x=>x.classList.remove('active'));items[active].classList.add('active')}
+    if(e.key==='Enter'){e.preventDefault();if(items.length){(items[active]||items[0]).click();return}if(!lastResults.length){search(q.value)}if(lastResults.length){select(lastResults[0])}}
+    if(e.key==='Escape'){list.style.display='none'}
+  });
+
+  document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))list.style.display='none'});
+</script>
+</body>
+</html>
