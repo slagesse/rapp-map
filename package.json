@@ -1,0 +1,16 @@
+{
+  "name": "rappahannock-map",
+  "version": "1.0.0",
+  "description": "Leaflet + Supabase map viewer with CSV address search for Rappahannock County",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "license": "MIT"
+}
