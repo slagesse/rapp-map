@@ -20,6 +20,21 @@
     }
     .search-panel{ position:relative; width:100%; }
 
+    .fema-credit {
+      position: fixed;
+      bottom: 8px;
+      left: 8px;
+      z-index: 1100;
+      color: #444;
+      font-size: 14px;
+      font-weight: bold;
+      text-decoration: none;
+      -webkit-text-stroke: 1px white; /* white outline */
+    }
+    .fema-credit:hover {
+      text-decoration: underline;
+    }
+
     /* Font scales with viewport width but stays readable on phones & not huge on desktop */
     :root {
       --input-fs: clamp(32px, 3.8vw, 44px);  /* main input font */
@@ -246,5 +261,7 @@
 
   document.addEventListener('click',e=>{ if(!e.target.closest('.search-dock')) list.style.display='none' });
 </script>
+<a href="https://msc.fema.gov/portal/advanceSearch" target="_blank" class="fema-credit">Data from FEMA</a>
+
 </body>
 </html>
