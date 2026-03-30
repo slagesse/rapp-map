@@ -165,7 +165,7 @@
   const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
 
   const map=L.map('map',{minZoom:10,maxZoom:16});
-  const SUPABASE_TILE_URL='https://lyunjcjfdjxxhtindvgy.supabase.co/storage/v1/object/public/rapp-photos/tiles-9/{z}/{x}/{y}.png';
+  const SUPABASE_TILE_URL='tiles-9/{z}/{x}/{y}.png';
   L.tileLayer(SUPABASE_TILE_URL,{
     minZoom:10,maxZoom:16,minNativeZoom:10,maxNativeZoom:16,tileSize:256,tms:false
   }).addTo(map);
