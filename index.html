@@ -1,181 +1,254 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Rapp Map + Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Rappahannock County Flood Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html,body,#map{height:100%;margin:0}
-    /* Optional: keep the page from scrolling; list will scroll internally */
-    html,body{overflow:hidden}
+    :root{
+      --gap:12px;
+      --radius:14px;
+      --surface:rgba(255,255,255,.94);
+      --border:rgba(15,23,42,.10);
+      --shadow:0 1px 2px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.14);
+      --text:#0f172a;
+      --muted:#64748b;
+      --hover:#f1f5f9;
+      --accent:#2563eb;
+      --safe-t:env(safe-area-inset-top, 0px);
+      --safe-r:env(safe-area-inset-right, 0px);
+      --safe-b:env(safe-area-inset-bottom, 0px);
+      --safe-l:env(safe-area-inset-left, 0px);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;overflow:hidden}
+    body{
+      font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      color:var(--text);
+      -webkit-text-size-adjust:100%;
+    }
+    #map{position:fixed;inset:0;height:100vh;height:100dvh;background:#e5e7eb}
 
-    /* === Bottom-anchored, responsive search === */
+    .card{
+      background:var(--surface);
+      -webkit-backdrop-filter:blur(12px);
+      backdrop-filter:blur(12px);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    /* === Search: top-left card on desktop, full width on phones === */
     .search-dock{
       position:fixed;
-      bottom:30px;
-      left:50%;
-      transform:translateX(-50%);
       z-index:1000;
-      width:clamp(320px, 85vw, 1100px);  /* responsive width */
+      top:calc(var(--gap) + var(--safe-t));
+      left:calc(var(--gap) + var(--safe-l));
+      width:min(400px, calc(100vw - 2*var(--gap) - var(--safe-l) - var(--safe-r)));
     }
-    .search-panel{ position:relative; width:100%; }
-
-    .fema-credit {
-      position: fixed;
-      bottom: 8px;
-      left: 8px;
-      z-index: 1100;
-      color: #444;
-      font-size: 18px;
-      font-weight: bold;
-      text-decoration: none;
-    }
-    .fema-credit:hover {
-      text-decoration: underline;
-    }
-
-    /* Font scales with viewport width but stays readable on phones & not huge on desktop */
-    :root {
-      --input-fs: clamp(26px, 3.8vw, 44px);  /* main input font */
-      --item-fs:  clamp(30px, 3.3vw, 36px);  /* result rows */
-      --pill-fs:  clamp(28px, 2.8vw, 32px);  /* coords */
-      --radius:   18px;
-    }
-
-
     .search{
-      width:100%;
-      display:flex; align-items:center; gap:12px;
-      padding:14px 16px;
-      background:rgba(20,24,33,.85);
-      backdrop-filter:blur(8px);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:var(--radius);
-      box-shadow:0 10px 30px rgba(0,0,0,.25);
+      display:flex;align-items:center;gap:10px;
+      height:48px;
+      padding:0 6px 0 14px;
     }
-    .search svg{ width:1em; height:1em; font-size:calc(var(--input-fs) + 2px) }
+    .search:focus-within{border-color:var(--accent);box-shadow:var(--shadow), 0 0 0 3px rgba(37,99,235,.18)}
+    .search > svg{flex:0 0 auto;width:20px;height:20px;color:var(--muted)}
     .search input{
-      flex:1;
-      background:transparent; border:0; outline:none;
-      color:#e8eef8;
-      font-size:var(--input-fs);
+      flex:1;min-width:0;height:100%;
+      background:transparent;border:0;outline:none;
+      color:inherit;
+      font:inherit;               /* 16px: prevents iOS zoom-on-focus */
+      -webkit-appearance:none;appearance:none;
     }
-    .search input::placeholder{ color:#9fb0c7 }
-
-    /* Suggestions: flush above the bar, semi-translucent with blur */
-    .list{
-      position:absolute;
-      bottom:calc(100% + 0px);  /* hugs the bar (no gap) */
-      left:0; width:100%;
-      max-height:min(42vh, 420px);
-      overflow:auto;
-      overscroll-behavior:contain;
-
-      background:rgba(20,24,33,.78);
-      backdrop-filter:blur(10px);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:12px;
-      padding:6px;
-      display:none;
-      box-shadow:0 16px 40px rgba(0,0,0,.28);
-    }
-
-    .item{
-      padding:10px 12px;
-      border-radius:10px;
-      color:#e8eef8;
-      font-size:var(--item-fs);
-      cursor:pointer;
-      display:block;
-    }
-    .item:hover,.item.active{ background:#1f2a3a }
-
-    /* Inline layout: address truncates, coords stay visible */
-    .item-row{
-      display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0;
-    }
-    .addr{
-      flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-    }
-    .pill{
+    .search input::placeholder{color:var(--muted)}
+    .search input::-webkit-search-cancel-button{display:none}
+    .clear{
       flex:0 0 auto;
-      color:#9fb0c7;
-      font-size:var(--pill-fs);
-      white-space:nowrap;
+      width:36px;height:36px;
+      display:none;place-items:center;
+      border:0;border-radius:50%;
+      background:transparent;color:var(--muted);
+      cursor:pointer;
+    }
+    .clear:hover{background:var(--hover);color:var(--text)}
+    .clear svg{width:18px;height:18px}
+    .search.has-value .clear{display:grid}
+
+    .list{
+      display:none;
+      margin-top:8px;
+      padding:6px;
+      max-height:min(50vh, 360px);
+      max-height:min(50dvh, 360px);
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      -webkit-overflow-scrolling:touch;
+    }
+    .list.open{display:block}
+    .item{
+      display:flex;flex-direction:column;justify-content:center;
+      min-height:48px;            /* comfortable touch target */
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+    }
+    .item.active{background:var(--hover)}
+    @media (hover:hover){ .item:hover{background:var(--hover)} }
+    .addr{font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .sub{font-size:13px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .empty{padding:12px 10px;color:var(--muted);font-size:14px}
+
+    /* === Legend: collapsible, bottom-left === */
+    .map-key{
+      position:fixed;
+      z-index:900;
+      left:calc(var(--gap) + var(--safe-l));
+      bottom:calc(var(--gap) + var(--safe-b));
+      max-width:calc(100vw - 2*var(--gap) - var(--safe-l) - var(--safe-r));
+      display:flex;flex-direction:column-reverse;   /* panel opens upward */
+      overflow:hidden;
+    }
+    .map-key summary{
+      display:flex;align-items:center;gap:8px;
+      min-height:44px;
+      padding:0 14px;
+      font-size:14px;font-weight:600;
+      cursor:pointer;
+      list-style:none;
+      user-select:none;-webkit-user-select:none;
+    }
+    .map-key summary::-webkit-details-marker{display:none}
+    .map-key summary svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}
+    .map-key summary .chev{margin-left:auto}
+    .map-key[open] summary .chev{transform:rotate(180deg)}
+    .map-key img{
+      display:block;
+      width:320px;max-width:100%;height:auto;
+      border-bottom:1px solid var(--border);
     }
 
-    /* Map pin pulse (unchanged) */
-    .pin{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.45);position:absolute;transform:translate(-50%,-50%)}
-    .pulse{position:absolute;width:14px;height:14px;border:2px solid rgba(255,255,255,.65);border-radius:50%;transform:translate(-50%,-50%);animation:pulse 1s ease-out 3}
-    @keyframes pulse{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.2)}}
-
-    /* Zoom controls (keep your previous size) */
-    .leaflet-control-zoom{
-      transform:scale(2);
-      transform-origin:top left;
-      margin-top:10px;
-      margin-left:10px;
+    /* === Leaflet controls === */
+    .leaflet-bottom.leaflet-right{
+      margin-right:var(--safe-r);
+      margin-bottom:var(--safe-b);
     }
+    .leaflet-control-zoom.leaflet-bar{
+      margin:0 var(--gap) var(--gap) 0;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .leaflet-control-zoom.leaflet-bar a{
+      width:44px;height:44px;line-height:44px;
+      font-size:22px;font-weight:400;
+      color:var(--text);
+      background:var(--surface);
+      border-bottom-color:var(--border);
+    }
+    .leaflet-control-zoom.leaflet-bar a:hover{background:var(--hover)}
+    .leaflet-control-zoom.leaflet-bar a.leaflet-disabled{color:#cbd5e1;background:var(--surface)}
+    .leaflet-container .leaflet-control-attribution{
+      margin:0 var(--gap) 6px 0;
+      padding:2px 8px;
+      border-radius:999px;
+      background:var(--surface);
+      font-size:11px;color:var(--muted);
+    }
+    .leaflet-container .leaflet-control-attribution a{color:inherit;text-decoration:underline}
+    /* Pinch-zoom covers this on small touch screens */
+    @media (pointer:coarse) and (max-width:640px){
+      .leaflet-control-zoom{display:none}
+    }
+
+    /* === Selected-address pin === */
+    .pin{position:relative}
+    .pin::before,.pin::after{
+      content:"";position:absolute;left:50%;top:50%;
+      border-radius:50%;
+      transform:translate(-50%,-50%);
+    }
+    .pin::before{
+      width:16px;height:16px;
+      background:var(--accent);
+      border:3px solid #fff;
+      box-shadow:0 1px 4px rgba(15,23,42,.5);
+    }
+    .pin::after{
+      width:16px;height:16px;
+      border:2px solid var(--accent);
+      opacity:0;
+      animation:pulse 1.2s ease-out .8s 3;
+    }
+    @keyframes pulse{
+      0%{opacity:.9;transform:translate(-50%,-50%) scale(1)}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(3.2)}
+    }
+    @media (prefers-reduced-motion:reduce){ .pin::after{animation:none} }
   </style>
-
-<style>
-  .map-key {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    background: rgba(255,255,255,0.9);
-    backdrop-filter: blur(8px);
-    padding: 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(0,0,0,0.15);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-  }
-  .map-key img {
-    max-width: 360px; /* scaled up ~2.5x from ~220px */
-    height: auto;
-    display: block;
-  }
-</style>
 </head>
 <body>
 <div id="map"></div>
 
-<div class="map-key">
-  <img src="legend.png" alt="Flood Map Legend">
+<div class="search-dock">
+  <div class="search card">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m21 21-4.2-4.2M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <input id="q" type="search" placeholder="Search an address" aria-label="Search an address"
+           role="combobox" aria-expanded="false" aria-controls="list" aria-autocomplete="list"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
+    <button id="clear" class="clear" type="button" aria-label="Clear search">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <div id="list" class="list card" role="listbox"></div>
 </div>
 
-<!-- New bottom search dock -->
-<div class="search-dock">
-  <div class="search-panel">
-    <div class="search">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="m21 21-4.2-4.2M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z"
-              stroke="#9fb0c7" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      <input id="q" placeholder="Search address..." autocomplete="off" />
-    </div>
-    <div id="list" class="list"></div>
-  </div>
-</div>
+<details class="map-key card" id="key">
+  <summary>
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3 3 8l9 5 9-5-9-5ZM3 13l9 5 9-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Legend
+    <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m6 15 6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </summary>
+  <img src="Legend.png" width="714" height="278" alt="Flood map legend: flood hazard areas with and without base flood elevation, regulatory floodway, and 0.2% annual chance flood hazard">
+</details>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-  const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  const MAX_RESULTS=8;
+  const norm=s=>String(s??'').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
 
-  const map=L.map('map',{minZoom:10,maxZoom:16});
+  const map=L.map('map',{minZoom:10,maxZoom:16,zoomControl:false});
   const SUPABASE_TILE_URL='https://ylazxxcltfjzxverlshh.supabase.co/storage/v1/object/public/tiles/tiles-9/{z}/{x}/{y}.png';
   L.tileLayer(SUPABASE_TILE_URL,{
-    minZoom:10,maxZoom:16,minNativeZoom:10,maxNativeZoom:16,tileSize:256,tms:false
+    minZoom:10,maxZoom:16,minNativeZoom:10,maxNativeZoom:16,tileSize:256,tms:false,
+    attribution:'Source: <a href="https://msc.fema.gov/portal/advanceSearch" target="_blank" rel="noopener">FEMA</a>'
   }).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  map.attributionControl.setPrefix(false);
   map.setView([38.65694, -78.22611], 14);
 
-  // prevent map from stealing clicks on the search UI
-  L.DomEvent.disableClickPropagation(document.querySelector('.search-dock'));
-
+  const dock=document.querySelector('.search-dock'), key=document.getElementById('key');
   const q=document.getElementById('q'), list=document.getElementById('list');
-  let data=[], lastResults=[], active=-1, marker=null, pulse=null, debounceT=null;
+  const bar=document.querySelector('.search'), clearBtn=document.getElementById('clear');
+  let data=[], loaded=false, shown=[], active=-1, marker=null, debounceT=null;
+
+  // prevent map from stealing clicks/scrolls on the overlay UI
+  [dock,key].forEach(el=>{L.DomEvent.disableClickPropagation(el);L.DomEvent.disableScrollPropagation(el)});
+
+  // Legend starts open where there's room for it
+  key.open=window.matchMedia('(min-width:768px) and (min-height:520px)').matches;
 
   // Load CSV
   fetch('./rapp.csv')
@@ -188,79 +261,115 @@
       const addrKey=find(['fulladdr','fulladdress','address','site_address','street_address','location','addr','address1'])||'FULLADDR';
       const latKey=find(['lat','latitude','y','ycoord','point_y','geom_y'])||'LAT';
       const lonKey=find(['lon','long','longitude','x','xcoord','point_x','geom_x'])||'LONG';
+      const cityKey=find(['po_name','msag_community','city','municipality']);
+      const stateKey=find(['state']);
+      const zipKey=find(['zip_5','zip','zipcode','postal_code']);
+      const val=(o,k)=>k?String(o[k]??'').trim():'';
       data=rows.map(o=>{
-        const a=String(o[addrKey]??'').trim();
-        const lat=parseFloat(o[latKey]);
-        const lon=parseFloat(o[lonKey]);
-        return {a, an:norm(a), lat, lon};
+        const a=val(o,addrKey);
+        const sub=[val(o,cityKey),[val(o,stateKey),val(o,zipKey)].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        return {a, sub, an:norm(a), lat:parseFloat(o[latKey]), lon:parseFloat(o[lonKey])};
       }).filter(d=>d.an && Number.isFinite(d.lat) && Number.isFinite(d.lon));
+      loaded=true;
+      if(q.value) search(q.value);
     })
-    .catch(e=>console.error('Failed to load rapp.csv', e));
+    .catch(e=>{console.error('Failed to load rapp.csv', e);loaded=true});
+
+  function openList(open){
+    list.classList.toggle('open',open);
+    q.setAttribute('aria-expanded',String(open));
+    if(!open) q.removeAttribute('aria-activedescendant');
+  }
+
+  function setActive(i){
+    const items=[...list.querySelectorAll('.item')];
+    active=i;
+    items.forEach((x,n)=>{x.classList.toggle('active',n===i);x.setAttribute('aria-selected',String(n===i))});
+    if(items[i]){q.setAttribute('aria-activedescendant',items[i].id);items[i].scrollIntoView({block:'nearest'})}
+  }
+
+  function message(text){
+    shown=[]; active=-1;
+    list.innerHTML='';
+    const div=document.createElement('div'); div.className='empty'; div.textContent=text;
+    list.appendChild(div);
+    openList(true);
+  }
 
   function render(items){
     list.innerHTML='';
-    if(!items.length){list.style.display='none';return}
-    items.slice(0,5).forEach((it,i)=>{
+    shown=items.slice(0,MAX_RESULTS);
+    shown.forEach((it,i)=>{
       const div=document.createElement('div');
-      div.className='item'+(i===0?' active':''); if(i===0) active=0;
-
-      const row=document.createElement('div'); row.className='item-row';
+      div.className='item'; div.id='opt-'+i; div.setAttribute('role','option');
       const addr=document.createElement('span'); addr.className='addr'; addr.textContent=it.a;
-      const coords=document.createElement('span'); coords.className='pill';
-      coords.textContent=`${it.lat.toFixed(5)}, ${it.lon.toFixed(5)}`;
-
-      row.appendChild(addr); row.appendChild(coords);
-      div.appendChild(row);
+      div.appendChild(addr);
+      if(it.sub){const sub=document.createElement('span'); sub.className='sub'; sub.textContent=it.sub; div.appendChild(sub)}
       div.onclick=()=>select(it);
       list.appendChild(div);
     });
-    list.style.display='block';
+    openList(true);
+    setActive(0);
   }
 
   function search(s){
     const qn=norm(s);
-    if(!qn || qn.length<2){ lastResults=[]; list.style.display='none'; return; }
-    lastResults=data.filter(d=>d.an.includes(qn));
-    render(lastResults);
+    if(qn.length<2){ shown=[]; openList(false); return; }
+    if(!loaded){ message('Loading addresses…'); return; }
+    // every word must appear; addresses that start with the query rank first
+    const tokens=qn.split(' ');
+    const hits=data.filter(d=>tokens.every(t=>d.an.includes(t)));
+    if(!hits.length){ message('No matching addresses'); return; }
+    const rank=d=>d.an.startsWith(qn)?0:d.an.includes(qn)?1:2;
+    hits.sort((a,b)=>rank(a)-rank(b)||a.an.localeCompare(b.an,undefined,{numeric:true}));
+    render(hits);
   }
 
   function select(it){
-    list.style.display='none';
+    openList(false);
     q.value=it.a;
+    bar.classList.add('has-value');
+    q.blur();                                   // dismiss the on-screen keyboard
+    if(marker) map.removeLayer(marker);
+    marker=L.marker([it.lat,it.lon],{
+      interactive:false,
+      icon:L.divIcon({className:'pin',iconSize:[0,0]})
+    }).addTo(map);
     map.flyTo([it.lat,it.lon],16,{duration:.8});
-    map.once('moveend',()=>{
-      if(marker) map.removeLayer(marker);
-      marker=L.marker([it.lat,it.lon],{interactive:false}).addTo(map);
-      const pt=map.latLngToLayerPoint([it.lat,it.lon]);
-      if(pulse) pulse.remove();
-      const pane=map.getPanes().overlayPane;
-      pulse=document.createElement('div'); pulse.className='pulse';
-      const pin=document.createElement('div'); pin.className='pin';
-      pulse.style.left=pin.style.left=pt.x+'px';
-      pulse.style.top=pin.style.top=pt.y+'px';
-      pane.appendChild(pulse); pane.appendChild(pin);
-      setTimeout(()=>{pulse.remove();pin.remove()},1200);
-    });
   }
 
   q.addEventListener('input',e=>{
-    active=-1;
-    clearTimeout(debounceT);
     const val=e.target.value;
+    bar.classList.toggle('has-value',!!val);
+    clearTimeout(debounceT);
     debounceT=setTimeout(()=>search(val),120);
   });
+  q.addEventListener('focus',()=>{ if(q.value) search(q.value) });
 
   q.addEventListener('keydown',e=>{
-    const items=[...list.querySelectorAll('.item')];
-    if(e.key==='ArrowDown'){e.preventDefault();if(!items.length)return;active=(active+1)%items.length;items.forEach(x=>x.classList.remove('active'));items[active].classList.add('active')}
-    if(e.key==='ArrowUp'){e.preventDefault();if(!items.length)return;active=(active-1+items.length)%items.length;items.forEach(x=>x.classList.remove('active'));items[active].classList.add('active')}
-    if(e.key==='Enter'){e.preventDefault();if(items.length){(items[active]||items[0]).click();return}if(!lastResults.length){search(q.value)}if(lastResults.length){select(lastResults[0])}}
-    if(e.key==='Escape'){list.style.display='none'}
+    const n=shown.length;
+    if(e.key==='ArrowDown'){e.preventDefault();if(n)setActive((active+1)%n)}
+    if(e.key==='ArrowUp'){e.preventDefault();if(n)setActive((active-1+n)%n)}
+    if(e.key==='Enter'){
+      e.preventDefault();
+      clearTimeout(debounceT);
+      if(!list.classList.contains('open')) search(q.value);
+      if(shown.length) select(shown[active]||shown[0]);
+    }
+    if(e.key==='Escape'){openList(false)}
   });
 
-  document.addEventListener('click',e=>{ if(!e.target.closest('.search-dock')) list.style.display='none' });
-</script>
-<a href="https://msc.fema.gov/portal/advanceSearch" target="_blank" class="fema-credit">Source: FEMA</a>
+  clearBtn.addEventListener('click',()=>{
+    q.value=''; shown=[];
+    bar.classList.remove('has-value');
+    openList(false);
+    if(marker){map.removeLayer(marker);marker=null}
+    q.focus();
+  });
 
+  // tapping or dragging the map dismisses results and the keyboard
+  map.on('click dragstart',()=>{openList(false);q.blur()});
+  window.addEventListener('resize',()=>map.invalidateSize());
+</script>
 </body>
 </html>
